@@ -5,40 +5,42 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 const ENDPOINT = {
   'mainnet-beta': 'https://api.mainnet-beta.solana.com',
   devnet: 'https://api.devnet.solana.com',
-} as const;
-type Cluster = keyof typeof ENDPOINT;
-
-type Web3Mod = { Connection: any; PublicKey: any };
+};
 
 export default function PhantomBalance() {
-  const [cluster, setCluster] = useState<Cluster>('mainnet-beta');
+  const [cluster, setCluster] = useState('mainnet-beta');
   const endpoint = useMemo(() => ENDPOINT[cluster], [cluster]);
-  const [web3, setWeb3] = useState<Web3Mod | null>(null);
-  const [conn, setConn] = useState<any | null>(null);
-  const [pubkey, setPubkey] = useState<any | null>(null);
-  const [balance, setBalance] = useState<number | null>(null);
+
+  const [web3, setWeb3] = useState(null);
+  const [conn, setConn] = useState(null);
+  const [pubkey, setPubkey] = useState(null);
+  const [balance, setBalance] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState(null);
 
   useEffect(() => {
     let live = true;
     (async () => {
       try {
-        const mod: any = await import('@solana/web3.js');
+        const mod = await import('@solana/web3.js');
         if (!live) return;
         setWeb3({ Connection: mod.Connection, PublicKey: mod.PublicKey });
-      } catch (e: any) { setErr(e?.message ?? String(e)); }
+      } catch (e) { setErr(e?.message ?? String(e)); }
     })();
     return () => { live = false; };
   }, []);
 
-  useEffect(() => { if (web3) setConn(new web3.Connection(endpoint, 'confirmed')); }, [web3, endpoint]);
+  useEffect(() => {
+    if (!web3) return;
+    try { setConn(new web3.Connection(endpoint, 'confirmed')); }
+    catch (e) { setErr(e?.message ?? String(e)); }
+  }, [web3, endpoint]);
 
   useEffect(() => {
-    const p = (typeof window !== 'undefined') ? (window as any).solana : null;
+    const p = typeof window !== 'undefined' ? window.solana : null;
     if (!p) return;
-    p.on?.('connect', (pk: any) => setPubkey(pk));
-    p.on?.('accountChanged', (pk: any|null) => setPubkey(pk));
+    p.on?.('connect', (pk) => setPubkey(pk));
+    p.on?.('accountChanged', (pk) => setPubkey(pk));
     p.on?.('disconnect', () => { setPubkey(null); setBalance(null); });
     p.connect?.({ onlyIfTrusted: true }).catch(() => {});
     return () => { try { p.off?.('connect'); p.off?.('accountChanged'); } catch {} };
@@ -47,13 +49,17 @@ export default function PhantomBalance() {
   const connect = async () => {
     setErr(null);
     try {
-      const p = (window as any).solana;
+      const p = window.solana;
       if (!p?.isPhantom) throw new Error('phantom not found');
       const res = await p.connect();
       setPubkey(res.publicKey);
-    } catch (e: any) { setErr(e?.message ?? String(e)); }
+    } catch (e) { setErr(e?.message ?? String(e)); }
   };
-  const disconnect = async () => { try { await (window as any).solana?.disconnect(); } catch {}; setPubkey(null); setBalance(null); };
+
+  const disconnect = async () => {
+    try { await window.solana?.disconnect(); } catch {}
+    setPubkey(null); setBalance(null);
+  };
 
   const fetchBalance = useCallback(async () => {
     if (!conn || !pubkey) return;
@@ -61,13 +67,13 @@ export default function PhantomBalance() {
     try {
       const lamports = await conn.getBalance(pubkey, { commitment: 'confirmed' });
       setBalance(lamports / 1_000_000_000);
-    } catch (e: any) { setErr(e?.message ?? String(e)); }
+    } catch (e) { setErr(e?.message ?? String(e)); }
     finally { setLoading(false); }
   }, [conn, pubkey]);
 
   useEffect(() => { if (pubkey) fetchBalance(); }, [fetchBalance, pubkey]);
 
-  const short = (s?: string, n=4) => s ? `${s.slice(0,n+2)}…${s.slice(-n)}` : '-';
+  const short = (s, n=4) => s ? `${s.slice(0,n+2)}…${s.slice(-n)}` : '-';
 
   return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',color:'#e5e7eb'}}>
@@ -79,7 +85,7 @@ export default function PhantomBalance() {
           <button onClick={pubkey?disconnect:connect} style={{padding:'8px 12px',border:'1px solid #3f3f46',borderRadius:8,color: pubkey?'#fca5a5':'#34d399'}}>
             {pubkey ? 'disconnect' : 'connect phantom'}
           </button>
-          <select value={cluster} onChange={(e)=>setCluster(e.target.value as Cluster)} style={{background:'transparent',border:'1px solid #3f3f46',borderRadius:8,color:'#e5e7eb',padding:'8px 12px'}}>
+          <select value={cluster} onChange={(e)=>setCluster(e.target.value)} style={{background:'transparent',border:'1px solid #3f3f46',borderRadius:8,color:'#e5e7eb',padding:'8px 12px'}}>
             <option value="mainnet-beta">mainnet-beta</option>
             <option value="devnet">devnet</option>
           </select>
@@ -90,7 +96,7 @@ export default function PhantomBalance() {
           <div style={{marginTop:6}}>
             {typeof window==='undefined' ? 'server…' :
              pubkey ? short(pubkey.toBase58?.() ?? String(pubkey)) :
-             ((window as any).solana?.isPhantom ? 'not connected' : 'phantom not detected')}
+             (window.solana?.isPhantom ? 'not connected' : 'phantom not detected')}
           </div>
         </div>
 
