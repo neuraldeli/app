@@ -4,9 +4,11 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 
 export default function PhantomBalance() {
   // cluster toggle (still works w/ proxy)
-  const [cluster, setCluster] = useState('mainnet-beta'); // 'devnet' or 'mainnet-beta'
-  const rpcPath = useMemo(() => `/api/rpc?cluster=${cluster}`, [cluster]);
-
+  const rpcUrl = useMemo(() => {
+  const base = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${base}/api/rpc?cluster=${cluster}`;
+  }, [cluster]);
+ 
   // lazy-load web3 on client
   const [web3, setWeb3] = useState(null);
   const [conn, setConn] = useState(null);
@@ -34,24 +36,24 @@ export default function PhantomBalance() {
 
   // make a connection that POSTS to our proxy route (no cors, hides key)
   useEffect(() => {
-    if (!web3) return;
-    try {
-      setConn(
-        new web3.Connection(rpcPath, {
-          commitment: 'confirmed',
-          // force all json-rpc calls through our api route
-          fetch: (_url, opts) =>
-            fetch(rpcPath, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: opts?.body,
-            }),
-        })
-      );
-    } catch (e) {
-      setErr(String(e?.message || e));
-    }
-  }, [web3, rpcPath]);
+  if (!web3) return;
+  try {
+    setConn(
+      new web3.Connection(rpcUrl, {
+        commitment: 'confirmed',
+        fetch: (_url, opts) =>
+          fetch(rpcUrl, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: opts?.body,
+          }),
+      })
+    );
+  } catch (e) {
+    setErr(String(e?.message || e));
+  }
+}, [web3, rpcUrl]);
+
 
   // phantom provider + session adoption
   useEffect(() => {
