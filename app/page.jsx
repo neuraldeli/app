@@ -95,7 +95,9 @@ export default function PhantomBalance() {
     }
   }, [conn, pubkey]);
 
-  useEffect(() => { if (pubkey) fetchBalance(); }, [fetchBalance, pubkey]);
+  useEffect(() => {
+  if (conn && pubkey) fetchBalance();
+}, [conn, pubkey, fetchBalance]);
 
   const short = (s, n = 4) => s ? `${s.slice(0, n + 2)}…${s.slice(-n)}` : '-';
 
